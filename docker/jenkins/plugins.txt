@@ -1,0 +1,6 @@
+git
+workflow-aggregator
+pipeline-stage-view
+credentials-binding
+allure-jenkins-plugin
+timestamper
