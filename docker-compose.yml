@@ -2,36 +2,29 @@ services:
   jenkins:
     build:
       context: ./docker/jenkins
+      dockerfile: Dockerfile
     container_name: parabank-jenkins
-    user: root
+    restart: unless-stopped
     ports:
       - "8080:8080"
       - "50000:50000"
     volumes:
       - jenkins_home:/var/jenkins_home
+    depends_on:
+      - selenium-chrome
     networks:
       - parabank-network
-    depends_on:
-      selenium-chrome:
-        condition: service_healthy
 
   selenium-chrome:
     image: selenium/standalone-chrome:latest
     container_name: parabank-selenium
+    restart: unless-stopped
     shm_size: 2gb
     ports:
       - "4444:4444"
+      - "7900:7900"
     networks:
       - parabank-network
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "curl -fsS http://localhost:4444/status || exit 1"
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 20
 
 volumes:
   jenkins_home:
