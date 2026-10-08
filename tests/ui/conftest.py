@@ -4,6 +4,7 @@ from faker import Faker
 import allure
 from src.ui.utils.driver_factory import create_driver
 
+
 @pytest.fixture
 def driver():
     browser = create_driver()

@@ -1,5 +1,4 @@
 from decimal import Decimal
-
 import allure
 import pytest
 
@@ -112,59 +111,67 @@ def test_successful_withdraw(
 @pytest.mark.parametrize(
     "missing_parameter",
     [
-        pytest.param("account_id",
-                     id="without_id",
-                     ),
+        pytest.param(
+            "account_id",
+            id="without-account-id",
+        ),
         pytest.param(
             "amount",
             id="without-amount",
         ),
     ],
 )
-
 def test_withdraw_without_required_parameter(
-        api_client,
-        funded_account,
-        missing_parameter,
+    api_client,
+    funded_account,
+    missing_parameter,
 ):
     account_id = funded_account["id"]
-    invalid_amount = "invalid"
 
-    with allure.step("Получить баланс перед некорректным запросом"):
+    allure.dynamic.title(
+        "Withdraw без обязательного параметра "
+        f"{missing_parameter}"
+    )
 
+    with allure.step("Получить баланс перед запросом"):
         before_response = api_client.get_account(
-            account_id=account_id
+            account_id=account_id,
         )
 
-        assert before_response.status_code == 200,(
-            "Не удалось получить счет перед withdraw"
-            f"КодЖ {before_response.status_code}"
-            f"ответ:{before_response.text!r}"
+        assert before_response.status_code == 200, (
+            "Не удалось получить счёт перед Withdraw. "
+            f"Код: {before_response.status_code}. "
+            f"Ответ: {before_response.text!r}"
         )
 
-        balance_before = Decimal(str(before_response.json()["balance"]))
+        balance_before = Decimal(
+            str(before_response.json()["balance"])
+        )
+
+    request_data = {
+        "account_id": account_id,
+        "amount": "1.00",
+    }
+
+    request_data.pop(missing_parameter)
 
     with allure.step(
-        f"Отправить Withdraw с amount={invalid_amount!r}"
+        f"Отправить Withdraw без {missing_parameter}"
     ):
         response = api_client.withdraw(
-            account_id=account_id,
-            amount=invalid_amount,
+            **request_data,
         )
 
-    with allure.step(
-            "Проверить, что операция отклонена"
-    ):
-        assert not 200 <= response.status_code < 300, (
-            "Сервис принял строку вместо суммы. "
-            f"Код: {response.status_code}. "
+    with allure.step("Проверить клиентскую ошибку"):
+        assert 400 <= response.status_code < 500, (
+            "Ожидалась ошибка 4xx при отсутствии "
+            f"параметра {missing_parameter}. "
+            f"Получен код: {response.status_code}. "
             f"URL: {response.url}. "
             f"Ответ: {response.text!r}"
         )
 
-    with allure.step(
-            "Получить баланс после некорректного запроса"
-    ):
+    with allure.step("Проверить, что баланс не изменился"):
         after_response = api_client.get_account(
             account_id=account_id,
         )
@@ -179,11 +186,78 @@ def test_withdraw_without_required_parameter(
             str(after_response.json()["balance"])
         )
 
-    with allure.step(
-            "Проверить, что баланс не изменился"
-    ):
         assert balance_after == balance_before, (
             "После некорректного Withdraw изменился баланс. "
-            f"Баланс до: {balance_before}. "
-            f"Баланс после: {balance_after}."
+            f"До: {balance_before}. "
+            f"После: {balance_after}."
+        )
+
+
+@pytest.mark.api
+@pytest.mark.regression
+@pytest.mark.negative
+@allure.epic("ParaBank API")
+@allure.feature("Accounts")
+@allure.story("Withdraw validation")
+@allure.title("Withdraw со строкой вместо суммы")
+def test_withdraw_with_invalid_amount_format(
+    api_client,
+    funded_account,
+):
+    account_id = funded_account["id"]
+    invalid_amount = "invalid"
+
+    allure.dynamic.parameter("account_id", account_id)
+    allure.dynamic.parameter("amount", invalid_amount)
+
+    with allure.step("Получить баланс перед запросом"):
+        before_response = api_client.get_account(
+            account_id=account_id,
+        )
+
+        assert before_response.status_code == 200, (
+            "Не удалось получить счёт перед Withdraw. "
+            f"Код: {before_response.status_code}. "
+            f"Ответ: {before_response.text!r}"
+        )
+
+        balance_before = Decimal(
+            str(before_response.json()["balance"])
+        )
+
+    with allure.step(
+        f"Отправить Withdraw с amount={invalid_amount!r}"
+    ):
+        response = api_client.withdraw(
+            account_id=account_id,
+            amount=invalid_amount,
+        )
+
+    with allure.step("Проверить клиентскую ошибку"):
+        assert 400 <= response.status_code < 500, (
+            "Ожидалась ошибка 4xx для строки вместо суммы. "
+            f"Получен код: {response.status_code}. "
+            f"URL: {response.url}. "
+            f"Ответ: {response.text!r}"
+        )
+
+    with allure.step("Проверить, что баланс не изменился"):
+        after_response = api_client.get_account(
+            account_id=account_id,
+        )
+
+        assert after_response.status_code == 200, (
+            "Не удалось получить счёт после Withdraw. "
+            f"Код: {after_response.status_code}. "
+            f"Ответ: {after_response.text!r}"
+        )
+
+        balance_after = Decimal(
+            str(after_response.json()["balance"])
+        )
+
+        assert balance_after == balance_before, (
+            "После некорректного Withdraw изменился баланс. "
+            f"До: {balance_before}. "
+            f"После: {balance_after}."
         )

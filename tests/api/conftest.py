@@ -2,7 +2,7 @@ from uuid import uuid4
 from decimal import Decimal
 import allure
 import pytest
-
+from faker import Faker
 from src.api.parabank_client import ParabankClient
 from src.settings import settings
 
@@ -13,6 +13,7 @@ def api_client():
         base_url=settings.base_api_url,
         web_base_url=settings.base_ui_url,
         timeout=settings.api_timeout,
+        min_request_interval=2.0,
     )
 
     yield client
@@ -20,9 +21,8 @@ def api_client():
     client.close()
 
 
-@pytest.fixture
-def customer_data(faker):
-    suffix = uuid4().hex[:10]
+def _build_customer_data(faker):
+    suffix = uuid4().hex
 
     return {
         "firstName": faker.first_name(),
@@ -37,86 +37,99 @@ def customer_data(faker):
         "password": "TestPassword123!",
     }
 
-
 @pytest.fixture
+def customer_data(faker):
+    return _build_customer_data(faker)
+
+@pytest.fixture(scope="session")
+def run_customer_data():
+    customer = _build_customer_data(Faker("en_US"))
+
+    customer["username"] = f"api_{uuid4().hex[:16]}"
+
+    return customer
+
+
+@pytest.fixture(scope="session")
 def registered_customer(
     api_client,
-    customer_data,
+    run_customer_data,
 ):
     with allure.step(
-        "Зарегистрировать пользователя через веб-форму"
+        "Один раз зарегистрировать пользователя API-прогона"
     ):
         registration_response = (
             api_client.register_customer(
-                customer_data=customer_data,
+                customer_data=run_customer_data,
             )
         )
 
-    assert registration_response.status_code == 200, (
-        "Не удалось зарегистрировать клиента. "
-        f"Код: {registration_response.status_code}. "
-        f"Метод: "
-        f"{registration_response.request.method}. "
-        f"URL: {registration_response.request.url}. "
-        f"Ответ: {registration_response.text}"
-    )
-
-    content_type = registration_response.headers.get(
-        "Content-Type",
-        "",
-    )
-
-    assert "text/html" in content_type, (
-        "От регистрации ожидалась HTML-страница. "
-        f"Получен Content-Type: {content_type}. "
-        f"Ответ: {registration_response.text}"
-    )
-
-    assert (
-        "Your account was created successfully"
-        in registration_response.text
-    ), (
-        "ParaBank не подтвердил регистрацию. "
-        "Возможно, форма отклонена или логин уже занят. "
-        f"Ответ: {registration_response.text}"
-    )
-
-    with allure.step(
-        "Получить созданного клиента через REST login"
-    ):
-        login_response = api_client.login(
-            username=customer_data["username"],
-            password=customer_data["password"],
+        assert registration_response.status_code == 200, (
+            "Не удалось зарегистрировать клиента. "
+            f"Код: {registration_response.status_code}. "
+            f"Ответ: {registration_response.text[:500]!r}"
         )
 
-    assert login_response.status_code == 200, (
-        "Не удалось авторизовать созданного клиента. "
-        f"Код: {login_response.status_code}. "
-        f"URL: {login_response.request.url}. "
-        f"Ответ: {login_response.text}"
-    )
+        content_type = (
+            registration_response.headers.get(
+                "Content-Type",
+                "",
+            ).lower()
+        )
 
-    login_content_type = login_response.headers.get(
-        "Content-Type",
-        "",
-    )
+        assert "text/html" in content_type, (
+            "От регистрации ожидалась HTML-страница. "
+            f"Получен Content-Type: {content_type}. "
+            f"Ответ: {registration_response.text[:500]!r}"
+        )
 
-    assert "application/json" in login_content_type, (
-        "От REST login ожидался JSON. "
-        f"Получен Content-Type: "
-        f"{login_content_type}. "
-        f"Ответ: {login_response.text}"
-    )
+        assert (
+            "Your account was created successfully"
+            in registration_response.text
+        ), (
+            "ParaBank не подтвердил регистрацию. "
+            f"Ответ: {registration_response.text[:500]!r}"
+        )
 
-    customer = login_response.json()
+    with allure.step(
+        "Получить пользователя прогона через REST login"
+    ):
+        login_response = api_client.login(
+            username=run_customer_data["username"],
+            password=run_customer_data["password"],
+        )
 
-    assert customer.get("id") is not None, (
-        "REST login не вернул ID клиента. "
-        f"Ответ: {customer}"
-    )
+        assert login_response.status_code == 200, (
+            "Не удалось авторизовать клиента. "
+            f"Код: {login_response.status_code}. "
+            f"Ответ: {login_response.text[:500]!r}"
+        )
+
+        content_type = (
+            login_response.headers.get(
+                "Content-Type",
+                "",
+            ).lower()
+        )
+
+        assert "application/json" in content_type, (
+            "От REST login ожидался JSON. "
+            f"Получен Content-Type: {content_type}. "
+            f"Ответ: {login_response.text[:500]!r}"
+        )
+
+        customer = login_response.json()
+
+        assert isinstance(customer, dict), (
+            f"Ожидался объект клиента: {customer}"
+        )
+
+        assert customer.get("id") is not None, (
+            f"REST login не вернул ID клиента: {customer}"
+        )
 
     return {
-        "request": customer_data,
+        "request": run_customer_data,
         "response": customer,
     }
 

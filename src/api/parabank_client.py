@@ -11,10 +11,12 @@ class ParabankClient(BaseApiClient):
         base_url: str,
         web_base_url: str,
         timeout: float = 15,
+        min_request_interval: float = 1.5,
     ) -> None:
         super().__init__(
             base_url=base_url,
             timeout=timeout,
+            min_request_interval=min_request_interval,
         )
 
         self.web_base_url = web_base_url.rstrip("/")
