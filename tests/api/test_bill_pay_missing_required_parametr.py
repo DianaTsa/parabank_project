@@ -174,7 +174,6 @@ def test_bill_pay_with_invalid_account_id(
     ):
         response = api_client.bill_pay(
             account_id=invalid_account_id,
-            amount="1.00",
             payee=payee_data,
         )
 
