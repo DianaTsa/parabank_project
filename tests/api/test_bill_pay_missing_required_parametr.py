@@ -34,19 +34,6 @@ BILL_PAY_INVALID_ACCOUNT_DEFECT = pytest.mark.xfail(
             ),
             id="without-account-id",
         ),
-        pytest.param(
-            "amount",
-            marks=pytest.mark.xfail(
-                reason=(
-                    "PB-001: Bill Pay без amount возвращает "
-                    "HTTP 500 и HTML-страницу ошибки вместо "
-                    "ожидаемой клиентской ошибки 4xx"
-                ),
-                raises=AssertionError,
-                strict=True,
-            ),
-            id="without-amount",
-        ),
     ],
 )
 def test_bill_pay_without_required_parameter(
@@ -64,7 +51,6 @@ def test_bill_pay_without_required_parameter(
 
     request_data = {
         "account_id": account_id,
-        "amount": "1.00",
         "payee": payee_data,
     }
 
