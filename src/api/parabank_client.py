@@ -29,14 +29,13 @@ class ParabankClient(BaseApiClient):
             f"{self.web_base_url}/register.htm"
         )
 
-        # Открываем страницу регистрации, чтобы получить
-        # cookies текущей сессии.
-        self.get(
+        registration_page = self.get(
             endpoint=registration_url,
-            headers={
-                "Accept": "text/html",
-            },
+            headers={"Accept": "text/html"},
         )
+
+        if registration_page.status_code != 200:
+            return registration_page
 
         form_data = {
             "customer.firstName": (
