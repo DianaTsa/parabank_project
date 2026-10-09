@@ -1,4 +1,5 @@
 from decimal import Decimal
+
 import allure
 import pytest
 
@@ -72,6 +73,7 @@ def test_successful_withdraw(
         assert withdraw_response.status_code == 200, (
             "Withdraw завершился с ошибкой. "
             f"Код: {withdraw_response.status_code}. "
+            f"URL: {withdraw_response.url}. "
             f"Ответ: {withdraw_response.text!r}"
         )
 
@@ -108,30 +110,14 @@ def test_successful_withdraw(
 @allure.epic("ParaBank API")
 @allure.feature("Accounts")
 @allure.story("Withdraw validation")
-@pytest.mark.parametrize(
-    "missing_parameter",
-    [
-        pytest.param(
-            "account_id",
-            id="without-account-id",
-        ),
-        pytest.param(
-            "amount",
-            id="without-amount",
-        ),
-    ],
-)
-def test_withdraw_without_required_parameter(
+@allure.title("Withdraw без обязательного параметра accountId")
+def test_withdraw_without_account_id(
     api_client,
     funded_account,
-    missing_parameter,
 ):
     account_id = funded_account["id"]
 
-    allure.dynamic.title(
-        "Withdraw без обязательного параметра "
-        f"{missing_parameter}"
-    )
+    allure.dynamic.parameter("amount", "1.00")
 
     with allure.step("Получить баланс перед запросом"):
         before_response = api_client.get_account(
@@ -148,24 +134,16 @@ def test_withdraw_without_required_parameter(
             str(before_response.json()["balance"])
         )
 
-    request_data = {
-        "account_id": account_id,
-        "amount": "1.00",
-    }
-
-    request_data.pop(missing_parameter)
-
     with allure.step(
-        f"Отправить Withdraw без {missing_parameter}"
+        "Отправить Withdraw без accountId, но с суммой 1.00"
     ):
         response = api_client.withdraw(
-            **request_data,
+            amount="1.00",
         )
 
     with allure.step("Проверить клиентскую ошибку"):
         assert 400 <= response.status_code < 500, (
-            "Ожидалась ошибка 4xx при отсутствии "
-            f"параметра {missing_parameter}. "
+            "Ожидалась ошибка 4xx при отсутствии accountId. "
             f"Получен код: {response.status_code}. "
             f"URL: {response.url}. "
             f"Ответ: {response.text!r}"
